@@ -143,84 +143,86 @@ export function DashboardPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0a0e17] text-slate-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Top Navbar */}
-      <header className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 mb-8 border-b border-slate-800 gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-teal-500/20">
-            <ShieldCheck className="w-6 h-6 text-slate-950" />
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center shadow-md shadow-teal-600/20">
+              <ShieldCheck className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-slate-900 flex items-center gap-2">
+                Quant Algo Console
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200 font-mono font-semibold">v1.0</span>
+              </h1>
+              <p className="text-xs text-slate-500">Trading Administrators & Access Control</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              Quant Algo Console
-              <span className="text-xs px-2 py-0.5 rounded bg-teal-500/10 text-teal-400 border border-teal-500/20 font-mono">v1.0</span>
-            </h1>
-            <p className="text-xs text-slate-400">Algorithmic Trading & System Administration</p>
-          </div>
-        </div>
 
-        {/* User Badge & Logout */}
-        <div className="flex items-center gap-3 self-end sm:self-auto">
-          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="text-slate-300 font-semibold">{currentAdmin?.username}</span>
-            <Badge variant={currentAdmin?.role === 'superadmin' ? 'purple' : 'primary'}>
-              {currentAdmin?.role}
-            </Badge>
+          {/* User Badge & Logout */}
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+            <div className="flex items-center gap-2 bg-slate-100/80 border border-slate-200 px-3 py-1.5 rounded-lg text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span className="text-slate-800 font-semibold">{currentAdmin?.username}</span>
+              <Badge variant={currentAdmin?.role === 'superadmin' ? 'purple' : 'primary'}>
+                {currentAdmin?.role}
+              </Badge>
+            </div>
+            <Button variant="secondary" size="sm" icon={LogOut} onClick={logout}>
+              Sign Out
+            </Button>
           </div>
-          <Button variant="secondary" size="sm" icon={LogOut} onClick={logout}>
-            Sign Out
-          </Button>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Notification Alert */}
         {notification.message && (
-          <div className={`flex items-center gap-2 p-4 rounded-xl text-xs font-medium border animate-in fade-in ${
+          <div className={`flex items-center gap-2 p-4 rounded-xl text-xs font-semibold border animate-in fade-in ${
             notification.type === 'success' 
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+              : 'bg-rose-50 border-rose-200 text-rose-800'
           }`}>
-            {notification.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            {notification.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
             <span>{notification.message}</span>
           </div>
         )}
 
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-[#111827] border border-slate-800/80 rounded-xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-slate-400 mb-2 text-xs">
-              <span>Total Admins</span>
-              <Users className="w-4 h-4 text-teal-400" />
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 text-xs font-medium">
+              <span>Total Administrators</span>
+              <Users className="w-4 h-4 text-teal-600" />
             </div>
-            <p className="text-2xl font-extrabold text-white font-mono">{admins.length}</p>
+            <p className="text-2xl font-bold text-slate-900 font-mono">{admins.length}</p>
           </div>
 
-          <div className="bg-[#111827] border border-slate-800/80 rounded-xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-slate-400 mb-2 text-xs">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 text-xs font-medium">
               <span>Superadmins</span>
-              <ShieldCheck className="w-4 h-4 text-indigo-400" />
+              <ShieldCheck className="w-4 h-4 text-indigo-600" />
             </div>
-            <p className="text-2xl font-extrabold text-white font-mono">
+            <p className="text-2xl font-bold text-slate-900 font-mono">
               {admins.filter(a => a.role === 'superadmin').length}
             </p>
           </div>
 
-          <div className="bg-[#111827] border border-slate-800/80 rounded-xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-slate-400 mb-2 text-xs">
-              <span>Active Status</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 mb-1.5 text-xs font-medium">
+              <span>Active Accounts</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
             </div>
-            <p className="text-2xl font-extrabold text-white font-mono">
+            <p className="text-2xl font-bold text-slate-900 font-mono">
               {admins.filter(a => a.is_active === 1).length} / {admins.length}
             </p>
           </div>
         </div>
 
         {/* Action Header / Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#111827]/80 p-4 rounded-xl border border-slate-800">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
           <div className="relative flex-1 max-w-md">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -228,7 +230,7 @@ export function DashboardPage() {
               placeholder="Search by username, email, or role..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-teal-500"
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white transition-all"
             />
           </div>
 
@@ -243,33 +245,33 @@ export function DashboardPage() {
         </div>
 
         {/* Admins Table */}
-        <div className="bg-[#111827] border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider border-b border-slate-800 font-mono">
+              <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider border-b border-slate-200 font-mono text-[11px]">
                 <tr>
-                  <th className="py-3.5 px-4">ID</th>
-                  <th className="py-3.5 px-4">User</th>
-                  <th className="py-3.5 px-4">Role</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4">Created Date</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3 px-4">ID</th>
+                  <th className="py-3 px-4">Admin User</th>
+                  <th className="py-3 px-4">Role</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Created Date</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-sans">
+              <tbody className="divide-y divide-slate-100 font-sans">
                 {filteredAdmins.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="py-12 text-center text-slate-500">
-                      No admins found matching criteria.
+                    <td colSpan="6" className="py-12 text-center text-slate-400">
+                      No administrators found matching criteria.
                     </td>
                   </tr>
                 ) : (
                   filteredAdmins.map((adm) => (
-                    <tr key={adm.id} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="py-3.5 px-4 font-mono text-slate-400 font-semibold">#{adm.id}</td>
+                    <tr key={adm.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3.5 px-4 font-mono text-slate-500 font-medium">#{adm.id}</td>
                       <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-100">{adm.username}</div>
-                        <div className="text-[11px] text-slate-400">{adm.email}</div>
+                        <div className="font-semibold text-slate-900">{adm.username}</div>
+                        <div className="text-[11px] text-slate-500">{adm.email}</div>
                       </td>
                       <td className="py-3.5 px-4">
                         <Badge variant={adm.role === 'superadmin' ? 'purple' : 'primary'}>
@@ -281,13 +283,13 @@ export function DashboardPage() {
                           {adm.is_active === 1 ? 'Active' : 'Inactive'}
                         </Badge>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-400 text-[11px] font-mono">
+                      <td className="py-3.5 px-4 text-slate-500 text-[11px] font-mono">
                         {adm.created_at}
                       </td>
-                      <td className="py-3.5 px-4 text-right space-x-2">
+                      <td className="py-3.5 px-4 text-right space-x-1">
                         <button
                           onClick={() => openEditModal(adm)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-teal-400 hover:bg-slate-800 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-slate-100 transition-colors cursor-pointer"
                           title="Edit Admin"
                         >
                           <Edit className="w-4 h-4" />
@@ -295,7 +297,7 @@ export function DashboardPage() {
                         <button
                           onClick={() => openDeleteModal(adm)}
                           disabled={adm.id === currentAdmin?.id}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
                           title={adm.id === currentAdmin?.id ? "Cannot delete yourself" : "Delete Admin"}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -340,19 +342,19 @@ export function DashboardPage() {
             value={formData.password}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
           />
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-slate-300">Role</label>
+          <div className="space-y-1.5 text-left">
+            <label className="block text-xs font-semibold text-slate-700">Role</label>
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-teal-500"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
             >
               <option value="admin">Admin</option>
               <option value="manager">Manager</option>
               <option value="superadmin">Superadmin</option>
             </select>
           </div>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="secondary" type="button" onClick={() => setIsAddModalOpen(false)}>
               Cancel
             </Button>
@@ -390,12 +392,12 @@ export function DashboardPage() {
             value={formData.password}
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
           />
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-slate-300">Role</label>
+          <div className="space-y-1.5 text-left">
+            <label className="block text-xs font-semibold text-slate-700">Role</label>
             <select
               value={formData.role}
               onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-teal-500"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20"
             >
               <option value="admin">Admin</option>
               <option value="manager">Manager</option>
@@ -408,11 +410,11 @@ export function DashboardPage() {
               id="is_active"
               checked={formData.is_active === 1}
               onChange={(e) => setFormData({ ...formData, is_active: e.target.checked ? 1 : 0 })}
-              className="rounded bg-slate-900 border-slate-700 text-teal-500 focus:ring-teal-500 h-4 w-4"
+              className="rounded border-slate-300 text-teal-600 focus:ring-teal-600 h-4 w-4"
             />
-            <label htmlFor="is_active" className="text-xs text-slate-300">Account is Active</label>
+            <label htmlFor="is_active" className="text-xs font-medium text-slate-700 cursor-pointer">Account is Active</label>
           </div>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="secondary" type="button" onClick={() => setIsEditModalOpen(false)}>
               Cancel
             </Button>
@@ -430,10 +432,10 @@ export function DashboardPage() {
         title="Confirm Deletion"
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-300">
-            Are you sure you want to permanently delete admin <strong className="text-rose-400">{selectedAdmin?.username}</strong>?
+          <p className="text-sm text-slate-600">
+            Are you sure you want to permanently delete admin <strong className="text-slate-900">{selectedAdmin?.username}</strong>?
           </p>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <Button variant="secondary" onClick={() => setIsDeleteModalOpen(false)}>
               Cancel
             </Button>

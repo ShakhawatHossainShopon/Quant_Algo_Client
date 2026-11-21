@@ -8,10 +8,10 @@ function AppContent() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#0a0e17] flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-teal-500/20 border-t-teal-500 rounded-full animate-spin"></div>
-          <span className="text-xs text-slate-400 font-mono tracking-wider">INITIALIZING CONSOLE...</span>
+          <div className="w-10 h-10 border-4 border-teal-600/20 border-t-teal-600 rounded-full animate-spin"></div>
+          <span className="text-xs text-slate-500 font-mono tracking-wider font-semibold">INITIALIZING CONSOLE...</span>
         </div>
       </div>
     );
