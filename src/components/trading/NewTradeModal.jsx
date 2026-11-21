@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { useApi } from '../../hooks/useApi';
-import { TrendingUp, TrendingDown, DollarSign, Target, ShieldAlert, FileText, CheckCircle2 } from 'lucide-react';
+import { 
+  TrendingUp, TrendingDown, Search, Layers, 
+  ChevronDown, Edit3, CheckCircle2 
+} from 'lucide-react';
 
 export function NewTradeModal({ isOpen, onClose, onSuccess }) {
-  const { post, loading, error: apiError } = useApi();
+  const { get, post, loading, error: apiError } = useApi();
 
-  const [symbol, setSymbol] = useState('EURUSD');
+  const [symbolsList, setSymbolsList] = useState([]);
+  const [symbolsLoading, setSymbolsLoading] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState('EURUSD');
+  const [customSymbol, setCustomSymbol] = useState('');
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
+
   const [action, setAction] = useState('BUY'); // 'BUY' or 'SELL'
   const [volume, setVolume] = useState('0.01');
   const [sl, setSl] = useState('');
@@ -16,14 +25,63 @@ export function NewTradeModal({ isOpen, onClose, onSuccess }) {
   const [comment, setComment] = useState('QuantAlgo Web');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const quickSymbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD', 'BTCUSD'];
+  // Fetch available symbols from backend when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isMounted = true;
+    const fetchSymbols = async () => {
+      setSymbolsLoading(true);
+      try {
+        const res = await get('/api/mt5/symbols');
+        if (isMounted && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setSymbolsList(res.data);
+          // Default to first symbol if current selected is not in list
+          const exists = res.data.some(s => s.symbol === selectedAsset);
+          if (!exists) {
+            setSelectedAsset(res.data[0].symbol);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load symbols from API, using defaults:', err);
+      } finally {
+        if (isMounted) setSymbolsLoading(false);
+      }
+    };
+
+    fetchSymbols();
+    return () => { isMounted = false; };
+  }, [isOpen, get]);
+
+  // Default fallback assets if API takes time or is offline
+  const fallbackSymbols = [
+    { symbol: 'EURUSD', category: 'Forex Majors', description: 'Euro vs US Dollar' },
+    { symbol: 'GBPUSD', category: 'Forex Majors', description: 'British Pound vs US Dollar' },
+    { symbol: 'USDJPY', category: 'Forex Majors', description: 'US Dollar vs Japanese Yen' },
+    { symbol: 'AUDUSD', category: 'Forex Majors', description: 'Australian Dollar vs US Dollar' },
+    { symbol: 'USDCAD', category: 'Forex Majors', description: 'US Dollar vs Canadian Dollar' },
+    { symbol: 'USDCHF', category: 'Forex Majors', description: 'US Dollar vs Swiss Franc' },
+    { symbol: 'XAUUSD', category: 'Metals & Energy', description: 'Gold vs US Dollar' },
+    { symbol: 'XAGUSD', category: 'Metals & Energy', description: 'Silver vs US Dollar' },
+    { symbol: 'BTCUSD', category: 'Crypto', description: 'Bitcoin vs US Dollar' },
+    { symbol: 'ETHUSD', category: 'Crypto', description: 'Ethereum vs US Dollar' }
+  ];
+
+  const activeSymbols = symbolsList.length > 0 ? symbolsList : fallbackSymbols;
+
+  const filteredSymbols = activeSymbols.filter(s => 
+    s.symbol.toLowerCase().includes(searchFilter.toLowerCase()) ||
+    (s.description && s.description.toLowerCase().includes(searchFilter.toLowerCase()))
+  );
+
+  const effectiveSymbol = isCustomMode ? customSymbol.trim().toUpperCase() : selectedAsset;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
-    if (!symbol.trim()) {
-      setErrorMsg('Please specify a trading symbol (e.g., EURUSD).');
+    if (!effectiveSymbol) {
+      setErrorMsg('Please select or specify a trading asset / symbol.');
       return;
     }
 
@@ -35,7 +93,7 @@ export function NewTradeModal({ isOpen, onClose, onSuccess }) {
 
     try {
       const payload = {
-        symbol: symbol.trim().toUpperCase(),
+        symbol: effectiveSymbol,
         action: action.toUpperCase(),
         volume: vol,
         sl: sl ? parseFloat(sl) : 0.0,
@@ -47,7 +105,7 @@ export function NewTradeModal({ isOpen, onClose, onSuccess }) {
 
       if (res.success) {
         if (onSuccess) {
-          onSuccess(res.message || `Position ${action} ${vol} ${symbol} opened successfully!`);
+          onSuccess(res.message || `Position ${action} ${vol} ${effectiveSymbol} opened successfully!`);
         }
         onClose();
       } else {
@@ -58,8 +116,19 @@ export function NewTradeModal({ isOpen, onClose, onSuccess }) {
     }
   };
 
+  const handleAssetSelectChange = (e) => {
+    const val = e.target.value;
+    if (val === '__CUSTOM__') {
+      setIsCustomMode(true);
+      if (!customSymbol) setCustomSymbol(selectedAsset);
+    } else {
+      setIsCustomMode(false);
+      setSelectedAsset(val);
+    }
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Open New Market Position" maxWidth="max-w-lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Open Market Position" maxWidth="max-w-lg">
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Error Alert */}
         {(errorMsg || apiError) && (
@@ -99,32 +168,90 @@ export function NewTradeModal({ isOpen, onClose, onSuccess }) {
           </div>
         </div>
 
-        {/* Symbol with Quick Picks */}
-        <div className="space-y-2">
-          <Input
-            label="Symbol (Instrument)"
-            placeholder="e.g. EURUSD, XAUUSD"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-            required
-          />
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-slate-400 font-medium">Quick Select:</span>
-            {quickSymbols.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSymbol(s)}
-                className={`text-[11px] font-mono px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
-                  symbol === s
-                    ? 'bg-teal-50 border-teal-300 text-teal-700 font-bold'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
+        {/* ASSET SELECTION SECTION */}
+        <div className="space-y-2 bg-slate-50/80 border border-slate-200/80 p-3.5 rounded-xl">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-semibold text-slate-800">
+              Select Trading Asset
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsCustomMode(!isCustomMode)}
+              className="text-[11px] font-semibold text-teal-600 hover:text-teal-700 flex items-center gap-1 cursor-pointer"
+            >
+              <Edit3 className="w-3 h-3" />
+              {isCustomMode ? 'Use Dropdown List' : 'Type Custom Symbol'}
+            </button>
           </div>
+
+          {!isCustomMode ? (
+            <div className="space-y-2">
+              {/* Filter search if list is large */}
+              {activeSymbols.length > 8 && (
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Filter assets (e.g. EUR, XAU, BTC, Gold)..."
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+              )}
+
+              {/* Native Dropdown */}
+              <div className="relative">
+                <select
+                  value={selectedAsset}
+                  onChange={handleAssetSelectChange}
+                  className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-900 focus:outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 cursor-pointer"
+                >
+                  {filteredSymbols.map((s) => (
+                    <option key={s.symbol} value={s.symbol}>
+                      {s.symbol} {s.description && s.description !== s.symbol ? `— ${s.description}` : ''}
+                    </option>
+                  ))}
+                  <option value="__CUSTOM__">✍️ + Enter Custom Symbol...</option>
+                </select>
+              </div>
+
+              {/* Quick Picks Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[11px] text-slate-400 font-medium">Quick Picks:</span>
+                {activeSymbols.slice(0, 5).map((s) => (
+                  <button
+                    key={s.symbol}
+                    type="button"
+                    onClick={() => {
+                      setSelectedAsset(s.symbol);
+                      setIsCustomMode(false);
+                    }}
+                    className={`text-[11px] font-mono px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                      selectedAsset === s.symbol && !isCustomMode
+                        ? 'bg-teal-50 border-teal-300 text-teal-700 font-bold'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {s.symbol}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Input
+                placeholder="Enter exact broker symbol (e.g. EURUSD, EURUSDm, GOLD)"
+                value={customSymbol}
+                onChange={(e) => setCustomSymbol(e.target.value.toUpperCase())}
+                required
+                autoFocus
+              />
+              <p className="text-[11px] text-slate-500">
+                Type the exact symbol name as recognized by your MetaTrader 5 broker.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Volume (Lots) */}
@@ -177,7 +304,7 @@ export function NewTradeModal({ isOpen, onClose, onSuccess }) {
             variant={action === 'BUY' ? 'primary' : 'danger'}
             loading={loading}
           >
-            Confirm {action} {volume || '0.01'} Lots
+            Confirm {action} {volume || '0.01'} Lots {effectiveSymbol ? `(${effectiveSymbol})` : ''}
           </Button>
         </div>
       </form>
