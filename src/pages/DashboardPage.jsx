@@ -1,30 +1,48 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useApi } from '../hooks/useApi';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
+import { AccountSummaryCard } from '../components/trading/AccountSummaryCard';
+import { OpenPositionsTable } from '../components/trading/OpenPositionsTable';
+import { NewTradeModal } from '../components/trading/NewTradeModal';
+import { ClosePositionModal } from '../components/trading/ClosePositionModal';
 import { 
   Users, UserPlus, LogOut, RefreshCw, Edit, Trash2, 
-  ShieldCheck, Search, AlertCircle, CheckCircle2 
+  ShieldCheck, Search, AlertCircle, CheckCircle2, Activity,
+  TrendingUp, Play, Pause
 } from 'lucide-react';
 
 export function DashboardPage() {
   const { admin: currentAdmin, logout } = useAuth();
-  const { get, post, loading } = useApi();
+  const { get, post, loading: apiLoading } = useApi();
 
-  const [admins, setAdmins] = useState([]);
-  const [search, setSearch] = useState('');
+  // Active Tab: 'trading' | 'admins'
+  const [activeTab, setActiveTab] = useState('trading');
+
+  // Shared Notifications
   const [notification, setNotification] = useState({ type: '', message: '' });
 
-  // Modal States
+  // MT5 State
+  const [mt5Account, setMt5Account] = useState(null);
+  const [mt5Positions, setMt5Positions] = useState([]);
+  const [mt5Loading, setMt5Loading] = useState(false);
+  const [mt5Error, setMt5Error] = useState(null);
+  const [isNewTradeModalOpen, setIsNewTradeModalOpen] = useState(false);
+  const [positionToClose, setPositionToClose] = useState(null);
+  const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
+  const [closeLoading, setCloseLoading] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Admin Management State
+  const [admins, setAdmins] = useState([]);
+  const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState(null);
-
-  // Form States
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -38,6 +56,83 @@ export function DashboardPage() {
     setTimeout(() => setNotification({ type: '', message: '' }), 4000);
   };
 
+  // Fetch MT5 Account & Positions
+  const fetchMt5Data = useCallback(async (silent = false) => {
+    if (!silent) setMt5Loading(true);
+    try {
+      const [accRes, posRes] = await Promise.all([
+        get('/api/mt5/account'),
+        get('/api/mt5/positions')
+      ]);
+
+      if (accRes.success && accRes.data) {
+        setMt5Account(accRes.data);
+        setMt5Error(null);
+      } else {
+        setMt5Error(accRes.message || 'MT5 account not available');
+      }
+
+      if (posRes.success && posRes.data) {
+        setMt5Positions(posRes.data);
+      }
+    } catch (err) {
+      setMt5Error(err.message || 'Failed to communicate with MT5 backend');
+    } finally {
+      if (!silent) setMt5Loading(false);
+    }
+  }, [get]);
+
+  // Polling for MT5 Data when trading tab is active
+  useEffect(() => {
+    if (activeTab === 'trading') {
+      fetchMt5Data(false);
+    }
+  }, [activeTab, fetchMt5Data]);
+
+  useEffect(() => {
+    let interval = null;
+    if (activeTab === 'trading' && autoRefresh) {
+      interval = setInterval(() => {
+        fetchMt5Data(true);
+      }, 5000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeTab, autoRefresh, fetchMt5Data]);
+
+  // Handle Position Close
+  const handleOpenCloseModal = (position) => {
+    setPositionToClose(position);
+    setIsCloseModalOpen(true);
+  };
+
+  const handleConfirmClose = async (ticket) => {
+    setCloseLoading(true);
+    try {
+      const res = await post('/api/mt5/position/close', { ticket });
+      if (res.success) {
+        showNotification('success', res.message || `Position #${ticket} closed successfully.`);
+        setIsCloseModalOpen(false);
+        setPositionToClose(null);
+        fetchMt5Data(true);
+      } else {
+        showNotification('error', res.message || 'Failed to close position.');
+      }
+    } catch (err) {
+      showNotification('error', err.message || 'Network error while closing position.');
+    } finally {
+      setCloseLoading(false);
+    }
+  };
+
+  // Handle New Trade Created
+  const handleTradeCreated = (msg) => {
+    showNotification('success', msg);
+    fetchMt5Data(true);
+  };
+
+  // Admin Management Fetch
   const fetchAdmins = useCallback(async () => {
     try {
       const res = await get('/api/admin/list');
@@ -50,10 +145,12 @@ export function DashboardPage() {
   }, [get]);
 
   useEffect(() => {
-    fetchAdmins();
-  }, [fetchAdmins]);
+    if (activeTab === 'admins') {
+      fetchAdmins();
+    }
+  }, [activeTab, fetchAdmins]);
 
-  // Handle Add Admin
+  // Admin Handlers
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -74,20 +171,18 @@ export function DashboardPage() {
     }
   };
 
-  // Open Edit Modal
   const openEditModal = (admin) => {
     setSelectedAdmin(admin);
     setFormData({
       username: admin.username,
       email: admin.email,
-      password: '', // Blank unless updating
+      password: '',
       role: admin.role,
       is_active: admin.is_active
     });
     setIsEditModalOpen(true);
   };
 
-  // Handle Update Admin
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!selectedAdmin) return;
@@ -115,13 +210,11 @@ export function DashboardPage() {
     }
   };
 
-  // Open Delete Modal
   const openDeleteModal = (admin) => {
     setSelectedAdmin(admin);
     setIsDeleteModalOpen(true);
   };
 
-  // Handle Delete Admin
   const handleDeleteConfirm = async () => {
     if (!selectedAdmin) return;
     try {
@@ -146,18 +239,44 @@ export function DashboardPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Top Navbar */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center shadow-md shadow-teal-600/20">
-              <ShieldCheck className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center shadow-md shadow-teal-600/20 text-white">
+              <Activity className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-slate-900 flex items-center gap-2">
-                Quant Algo Console
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-bold tracking-tight text-slate-900">Quant Algo Console</h1>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200 font-mono font-semibold">v1.0</span>
-              </h1>
-              <p className="text-xs text-slate-500">Trading Administrators & Access Control</p>
+              </div>
+              <p className="text-xs text-slate-500">MetaTrader 5 Automated Trading & Admin Portal</p>
             </div>
+          </div>
+
+          {/* Navigation Tab Switcher */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+            <button
+              onClick={() => setActiveTab('trading')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'trading'
+                  ? 'bg-white text-teal-700 shadow-xs border border-slate-200/60'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Activity className="w-4 h-4 text-teal-600" />
+              <span>MT5 Trading</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('admins')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'admins'
+                  ? 'bg-white text-teal-700 shadow-xs border border-slate-200/60'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users className="w-4 h-4 text-slate-600" />
+              <span>Admins</span>
+            </button>
           </div>
 
           {/* User Badge & Logout */}
@@ -177,7 +296,7 @@ export function DashboardPage() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Notification Alert */}
         {notification.message && (
           <div className={`flex items-center gap-2 p-4 rounded-xl text-xs font-semibold border animate-in fade-in ${
@@ -185,134 +304,217 @@ export function DashboardPage() {
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
               : 'bg-rose-50 border-rose-200 text-rose-800'
           }`}>
-            {notification.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
+            {notification.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
             <span>{notification.message}</span>
           </div>
         )}
 
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-            <div className="flex items-center justify-between text-slate-500 mb-1.5 text-xs font-medium">
-              <span>Total Administrators</span>
-              <Users className="w-4 h-4 text-teal-600" />
-            </div>
-            <p className="text-2xl font-bold text-slate-900 font-mono">{admins.length}</p>
-          </div>
+        {/* TAB 1: MT5 TRADING CONSOLE */}
+        {activeTab === 'trading' && (
+          <div className="space-y-6 animate-in fade-in duration-150">
+            {/* Trading Action Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-slate-900">MetaTrader 5 Engine</span>
+                <span className="text-xs text-slate-400 font-mono">|</span>
+                <button
+                  type="button"
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
+                    autoRefresh
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      : 'bg-slate-100 border-slate-200 text-slate-500'
+                  }`}
+                >
+                  {autoRefresh ? <Play className="w-3 h-3 fill-emerald-600 text-emerald-600" /> : <Pause className="w-3 h-3 text-slate-400" />}
+                  {autoRefresh ? 'Live Poll Active (5s)' : 'Live Poll Paused'}
+                </button>
+              </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-            <div className="flex items-center justify-between text-slate-500 mb-1.5 text-xs font-medium">
-              <span>Superadmins</span>
-              <ShieldCheck className="w-4 h-4 text-indigo-600" />
+              <div className="flex items-center gap-2.5">
+                <Button
+                  variant="secondary"
+                  size="md"
+                  icon={RefreshCw}
+                  loading={mt5Loading}
+                  onClick={() => fetchMt5Data(false)}
+                >
+                  Refresh Data
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  icon={TrendingUp}
+                  onClick={() => setIsNewTradeModalOpen(true)}
+                >
+                  Open Market Position
+                </Button>
+              </div>
             </div>
-            <p className="text-2xl font-bold text-slate-900 font-mono">
-              {admins.filter(a => a.role === 'superadmin').length}
-            </p>
-          </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-            <div className="flex items-center justify-between text-slate-500 mb-1.5 text-xs font-medium">
-              <span>Active Accounts</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            </div>
-            <p className="text-2xl font-bold text-slate-900 font-mono">
-              {admins.filter(a => a.is_active === 1).length} / {admins.length}
-            </p>
-          </div>
-        </div>
+            {/* Account Metrics Card */}
+            <AccountSummaryCard
+              account={mt5Account}
+              loading={mt5Loading}
+              onRefresh={() => fetchMt5Data(false)}
+              error={mt5Error}
+            />
 
-        {/* Action Header / Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by username, email, or role..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white transition-all"
+            {/* Open Positions Table */}
+            <OpenPositionsTable
+              positions={mt5Positions}
+              loading={mt5Loading || closeLoading}
+              onClosePosition={handleOpenCloseModal}
+              onOpenNewTrade={() => setIsNewTradeModalOpen(true)}
             />
           </div>
+        )}
 
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="md" icon={RefreshCw} loading={loading} onClick={fetchAdmins}>
-              Refresh
-            </Button>
-            <Button variant="primary" size="md" icon={UserPlus} onClick={() => setIsAddModalOpen(true)}>
-              Add Admin
-            </Button>
-          </div>
-        </div>
+        {/* TAB 2: ADMIN MANAGEMENT */}
+        {activeTab === 'admins' && (
+          <div className="space-y-6 animate-in fade-in duration-150">
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+                <div className="flex items-center justify-between text-slate-500 mb-1.5 text-xs font-medium">
+                  <span>Total Administrators</span>
+                  <Users className="w-4 h-4 text-teal-600" />
+                </div>
+                <p className="text-2xl font-bold text-slate-900 font-mono">{admins.length}</p>
+              </div>
 
-        {/* Admins Table */}
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider border-b border-slate-200 font-mono text-[11px]">
-                <tr>
-                  <th className="py-3 px-4">ID</th>
-                  <th className="py-3 px-4">Admin User</th>
-                  <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Created Date</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-sans">
-                {filteredAdmins.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="py-12 text-center text-slate-400">
-                      No administrators found matching criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAdmins.map((adm) => (
-                    <tr key={adm.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3.5 px-4 font-mono text-slate-500 font-medium">#{adm.id}</td>
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-900">{adm.username}</div>
-                        <div className="text-[11px] text-slate-500">{adm.email}</div>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <Badge variant={adm.role === 'superadmin' ? 'purple' : 'primary'}>
-                          {adm.role}
-                        </Badge>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <Badge variant={adm.is_active === 1 ? 'success' : 'danger'}>
-                          {adm.is_active === 1 ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-500 text-[11px] font-mono">
-                        {adm.created_at}
-                      </td>
-                      <td className="py-3.5 px-4 text-right space-x-1">
-                        <button
-                          onClick={() => openEditModal(adm)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                          title="Edit Admin"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openDeleteModal(adm)}
-                          disabled={adm.id === currentAdmin?.id}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
-                          title={adm.id === currentAdmin?.id ? "Cannot delete yourself" : "Delete Admin"}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+                <div className="flex items-center justify-between text-slate-500 mb-1.5 text-xs font-medium">
+                  <span>Superadmins</span>
+                  <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                </div>
+                <p className="text-2xl font-bold text-slate-900 font-mono">
+                  {admins.filter(a => a.role === 'superadmin').length}
+                </p>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+                <div className="flex items-center justify-between text-slate-500 mb-1.5 text-xs font-medium">
+                  <span>Active Accounts</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                </div>
+                <p className="text-2xl font-bold text-slate-900 font-mono">
+                  {admins.filter(a => a.is_active === 1).length} / {admins.length}
+                </p>
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by username, email, or role..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-teal-600 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="md" icon={RefreshCw} loading={apiLoading} onClick={fetchAdmins}>
+                  Refresh
+                </Button>
+                <Button variant="primary" size="md" icon={UserPlus} onClick={() => setIsAddModalOpen(true)}>
+                  Add Admin
+                </Button>
+              </div>
+            </div>
+
+            {/* Admins Table */}
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 uppercase tracking-wider border-b border-slate-200 font-mono text-[11px]">
+                    <tr>
+                      <th className="py-3 px-4">ID</th>
+                      <th className="py-3 px-4">Admin User</th>
+                      <th className="py-3 px-4">Role</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Created Date</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-sans">
+                    {filteredAdmins.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="py-12 text-center text-slate-400">
+                          No administrators found matching criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAdmins.map((adm) => (
+                        <tr key={adm.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-4 font-mono text-slate-500 font-medium">#{adm.id}</td>
+                          <td className="py-3.5 px-4">
+                            <div className="font-semibold text-slate-900">{adm.username}</div>
+                            <div className="text-[11px] text-slate-500">{adm.email}</div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <Badge variant={adm.role === 'superadmin' ? 'purple' : 'primary'}>
+                              {adm.role}
+                            </Badge>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <Badge variant={adm.is_active === 1 ? 'success' : 'danger'}>
+                              {adm.is_active === 1 ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-500 text-[11px] font-mono">
+                            {adm.created_at}
+                          </td>
+                          <td className="py-3.5 px-4 text-right space-x-1">
+                            <button
+                              onClick={() => openEditModal(adm)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                              title="Edit Admin"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => openDeleteModal(adm)}
+                              disabled={adm.id === currentAdmin?.id}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                              title={adm.id === currentAdmin?.id ? "Cannot delete yourself" : "Delete Admin"}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </main>
 
-      {/* Add Admin Modal */}
+      {/* MODALS */}
+      {/* 1. New Trade Position Modal */}
+      <NewTradeModal
+        isOpen={isNewTradeModalOpen}
+        onClose={() => setIsNewTradeModalOpen(false)}
+        onSuccess={handleTradeCreated}
+      />
+
+      {/* 2. Close Trade Confirmation Modal */}
+      <ClosePositionModal
+        isOpen={isCloseModalOpen}
+        onClose={() => setIsCloseModalOpen(false)}
+        position={positionToClose}
+        onConfirm={handleConfirmClose}
+        loading={closeLoading}
+      />
+
+      {/* 3. Add Admin Modal */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -358,14 +560,14 @@ export function DashboardPage() {
             <Button variant="secondary" type="button" onClick={() => setIsAddModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" loading={loading}>
+            <Button variant="primary" type="submit" loading={apiLoading}>
               Create Admin
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Edit Admin Modal */}
+      {/* 4. Edit Admin Modal */}
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
@@ -418,14 +620,14 @@ export function DashboardPage() {
             <Button variant="secondary" type="button" onClick={() => setIsEditModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" loading={loading}>
+            <Button variant="primary" type="submit" loading={apiLoading}>
               Save Changes
             </Button>
           </div>
         </form>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
+      {/* 5. Delete Admin Modal */}
       <Modal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
@@ -439,7 +641,7 @@ export function DashboardPage() {
             <Button variant="secondary" onClick={() => setIsDeleteModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="danger" loading={loading} onClick={handleDeleteConfirm}>
+            <Button variant="danger" loading={apiLoading} onClick={handleDeleteConfirm}>
               Yes, Delete
             </Button>
           </div>
